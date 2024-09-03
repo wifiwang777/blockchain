@@ -6,8 +6,24 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
+	"github.com/btcsuite/btcd/txscript"
 	"testing"
 )
+
+var client *rpcclient.Client
+
+func init() {
+	config := &rpcclient.ConnConfig{
+		Host:         "https://go.getblock.io/3ebe61c87d824529b16f2fff7b42ecc7",
+		HTTPPostMode: true,
+		//DisableTLS:   true,
+	}
+	var err error
+	client, err = rpcclient.New(config, nil)
+	if err != nil {
+		panic(err)
+	}
+}
 
 func TestGeneratePrivateKey(t *testing.T) {
 	privateKey, err := btcec.NewPrivateKey()
@@ -42,29 +58,54 @@ func TestAddress(t *testing.T) {
 		return
 	}
 	_, publicKey := btcec.PrivKeyFromBytes(bytes)
+	publicKeyCompressed := publicKey.SerializeCompressed()
 
-	addressPubKey, err := btcutil.NewAddressPubKey(publicKey.SerializeCompressed(), &chaincfg.TestNet3Params)
+	net := &chaincfg.TestNet3Params
+
+	addressPubKey, err := btcutil.NewAddressPubKey(publicKeyCompressed, net)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
 	t.Logf("address: %s", addressPubKey.EncodeAddress())
-	// 16ohzozfnV4m5hBHhqMwp6vDfwpdqRzwr8 // mainnet
-	// mmKfHs5ebWW1roeuRQLKe28YXwRLkhhSy2 // testnet3
-}
 
-func TestGetBalance(t *testing.T) {
-	config := &rpcclient.ConnConfig{
-		Host:         "https://go.getblock.io/3ebe61c87d824529b16f2fff7b42ecc7",
-		HTTPPostMode: true,
-		//DisableTLS:   true,
-	}
-	client, err := rpcclient.New(config, nil)
+	addressPubKeyHash, err := btcutil.NewAddressPubKeyHash(addressPubKey.AddressPubKeyHash().ScriptAddress(), net)
 	if err != nil {
 		t.Error(err)
 		return
 	}
+	t.Logf("address: %s", addressPubKeyHash.EncodeAddress())
+
+	script, err := txscript.PayToAddrScript(addressPubKey.AddressPubKeyHash())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	addressScriptHash, err := btcutil.NewAddressScriptHash(script, net)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	t.Logf("address: %s", addressScriptHash.EncodeAddress())
+
+	addressWitnessPubKeyHash, err := btcutil.NewAddressWitnessPubKeyHash(addressPubKeyHash.ScriptAddress(), net)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	t.Logf("address: %s", addressWitnessPubKeyHash.EncodeAddress())
+
+	addressWitnessScriptHash, err := btcutil.NewAddressWitnessScriptHash(script, net)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	t.Logf("address: %s", addressWitnessScriptHash.EncodeAddress())
+}
+
+func TestGetBalance(t *testing.T) {
 	balance, err := client.GetBalance("mmKfHs5ebWW1roeuRQLKe28YXwRLkhhSy2")
 	if err != nil {
 		t.Error(err)
@@ -73,27 +114,7 @@ func TestGetBalance(t *testing.T) {
 	t.Logf("balance: %d", balance)
 }
 
-//curl --location --request POST 'https://go.getblock.io/3ebe61c87d824529b16f2fff7b42ecc7/' \
-//--header 'Content-Type: application/json' \
-//--data-raw {
-//    "jsonrpc": "2.0",
-//    "method": "getblockcount",
-//    "params": [],
-//    "id": "getblock.io"
-//}
-
 func TestClient(t *testing.T) {
-	config := &rpcclient.ConnConfig{
-		Host:         "https://go.getblock.io/3ebe61c87d824529b16f2fff7b42ecc7",
-		HTTPPostMode: true,
-		//DisableTLS:   true,
-	}
-	client, err := rpcclient.New(config, nil)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
 	message, err := client.RawRequest("getblockcount", nil)
 	if err != nil {
 		t.Error(err)
